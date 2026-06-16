@@ -13,8 +13,8 @@ source:
 
 build:
   number: 0
-  # nvpl is only for ARM architecture
-  skip: true  # [not aarch64]
+  # NVPL targets NVIDIA Grace (linux-aarch64/sbsa) only
+  skip: true  # [not (linux and aarch64)]
   script:
     - cp -rv include $PREFIX
     - cp -rv lib $PREFIX
@@ -51,15 +51,15 @@ outputs:
     test:
       files:
         - test
-      requires:   # [build_platform == target_platform]
-        - {{ compiler("c") }}  # [build_platform == target_platform]
-        - {{ compiler("cxx") }}  # [build_platform == target_platform]
-        - {{ stdlib("c") }}  # [build_platform == target_platform]
-        - cmake   # [build_platform == target_platform]
-        - ninja  # [build_platform == target_platform]
+      requires:
+        - {{ compiler("c") }}
+        - {{ compiler("cxx") }}
+        - {{ stdlib("c") }}
+        - cmake
+        - ninja-base
       commands:
-        - cmake ${CMAKE_ARGS} -GNinja test  # [build_platform == target_platform]
-        - cmake --build .  # [build_platform == target_platform]
+        - cmake ${CMAKE_ARGS} -GNinja test
+        - cmake --build .
         - test -f $PREFIX/include/nvpl_tensor.h
         - test -f $PREFIX/lib/cmake/nvpl_tensor/nvpl_tensor-config.cmake
         - test -f $PREFIX/lib/libnvpl_tensor.so
@@ -80,6 +80,10 @@ outputs:
         - _nvpl_dev_mutex
         - libnvpl-common-dev
         - libnvpl-blas-dev
+        # The *_gomp.so variants link the GNU OpenMP runtime directly.
+        - libgomp  # [linux]
+      run:
+        - libgomp  # [linux]
       run_constrained:
         - arm-variant * {{ arm_variant_type }}
     test:
@@ -90,8 +94,9 @@ outputs:
 about:
   home: https://developer.nvidia.com/nvpl
   license: LicenseRef-NVIDIA-End-User-License-Agreement
+  license_family: Other
   license_file: LICENSE
-  license_url: https://docs.nvidia.com/nvpl/license.html
+  license_url: https://docs.nvidia.com/nvpl/latest/license.html
   summary: >-
     The NVIDIA Performance Libraries (NVPL) are a collection of high performance mathematical libraries optimized for the NVIDIA Grace Armv9.0 architecture.
   description: >-
@@ -99,8 +104,18 @@ about:
 
     These CPU-only libraries have no dependencies on CUDA or CTK, and are drop in replacements for standard C and Fortran mathematical APIs allowing HPC applications to achieve maximum performance on the Grace platform.
   doc_url: https://docs.nvidia.com/nvpl/
+  dev_url: https://developer.nvidia.com/nvpl
 
 extra:
+  skip-lints:
+    # license_url is kept on all Nvidia feedstocks per team convention
+    - deprecate_license_url
+    # libgomp + the -dev pin_subpackage host dep are linked/exact but the linter
+    # parses the raw recipe; same approach as magma-feedstock.
+    - host_section_needs_exact_pinnings
+    # runtime output name is jinja-computed; the 1-to-1 anaconda.yaml check
+    # compares against the raw (unrendered) name and can't match it.
+    - missing_source_tracking
   feedstock-name: libnvpl-tensor
   recipe-maintainers:
     - conda-forge/cuda
